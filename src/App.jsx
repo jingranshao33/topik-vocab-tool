@@ -102,9 +102,17 @@ export default function App() {
   const now = Date.now();
 
   // ---------- 学习队列 ----------
+  // "今日新词"按自然日封顶DAILY_NEW个：已计入今天学习计数的词不再重复占用名额，
+  // 名额用完后（remainingSlots=0）newWords为空，今天不会再显示新词
   const newWords = useMemo(() => {
-    const list = VOCAB.filter((v) => !progress[v.id]);
-    return list.slice(0, DAILY_NEW);
+    const today = todayKey();
+    let todayLearnedCount = 0;
+    for (const v of VOCAB) {
+      if (progress[v.id]?.learnedDate === today) todayLearnedCount++;
+    }
+    const remainingSlots = Math.max(0, DAILY_NEW - todayLearnedCount);
+    const untouched = VOCAB.filter((v) => !progress[v.id]);
+    return untouched.slice(0, remainingSlots);
   }, [progress]);
 
   const [learnIndex, setLearnIndex] = useState(0);
@@ -160,10 +168,11 @@ export default function App() {
   }
 
   function markLearn(word, action) {
+    const today = todayKey();
     setProgress((prev) => {
       const next = { ...prev };
       if (action === "master") {
-        next[word.id] = { status: "mastered", stage: -1, nextReview: null, guessRecent: false };
+        next[word.id] = { status: "mastered", stage: -1, nextReview: null, guessRecent: false, learnedDate: today };
       } else {
         // 见过 / 没见过 都进入复习队列，当天即可测验（艾宾浩斯1/3/7/14/30天从第一次测验答对后开始计）
         next[word.id] = {
@@ -171,6 +180,7 @@ export default function App() {
           stage: -1,
           nextReview: now,
           guessRecent: false,
+          learnedDate: today,
         };
       }
       return next;
