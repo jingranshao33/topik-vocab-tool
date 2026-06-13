@@ -125,8 +125,7 @@ export default function App() {
     return untouched.slice(0, remainingSlots);
   }, [progress, dailyCount]);
 
-  const [learnIndex, setLearnIndex] = useState(0);
-  const currentLearnWord = newWords[learnIndex];
+  const currentLearnWord = newWords[0];
 
   // ---------- 复习队列（用于测验）----------
   const dueWords = useMemo(() => {
@@ -199,7 +198,6 @@ export default function App() {
       }
       return next;
     });
-    setLearnIndex((i) => i + 1);
   }
 
   function recordQuizAnswer(item, correct) {
@@ -289,7 +287,6 @@ export default function App() {
     if (!window.confirm("确定要清空所有学习进度吗？此操作不可恢复。")) return;
     setProgress({});
     setDailyCount({ date: todayKey(), used: 0 });
-    setLearnIndex(0);
     setImportMsg("已重置全部进度");
   }
 
@@ -331,7 +328,8 @@ export default function App() {
             ) : currentLearnWord ? (
               <div>
                 <p className="text-xs text-slate-400 mb-2">
-                  今日新词 {learnIndex + 1} / {newWords.length}
+                  今日新词 {(dailyCount.date === todayKey() ? dailyCount.used : 0) + 1} /{" "}
+                  {(dailyCount.date === todayKey() ? dailyCount.used : 0) + newWords.length}
                 </p>
                 <div className="text-2xl font-bold text-slate-900 mb-1 flex items-center gap-2">
                   {currentLearnWord.word}
