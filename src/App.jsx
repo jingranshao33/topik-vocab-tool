@@ -101,19 +101,29 @@ export default function App() {
 
   const now = Date.now();
 
+  // ---------- 今日学习额度（独立计数器，不依赖单词记录里的字段，避免历史数据干扰）----------
+  const [dailyCount, setDailyCount] = useState(() => {
+    try {
+      const saved = localStorage.getItem("topik_daily_count");
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return { date: todayKey(), used: 0 };
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("topik_daily_count", JSON.stringify(dailyCount));
+    } catch (e) {}
+  }, [dailyCount]);
+
   // ---------- 学习队列 ----------
-  // "今日新词"按自然日封顶DAILY_NEW个：已计入今天学习计数的词不再重复占用名额，
-  // 名额用完后（remainingSlots=0）newWords为空，今天不会再显示新词
+  // "今日新词"按自然日封顶DAILY_NEW个，用dailyCount独立计数，不受历史progress记录影响
   const newWords = useMemo(() => {
-    const today = todayKey();
-    let todayLearnedCount = 0;
-    for (const v of VOCAB) {
-      if (progress[v.id]?.learnedDate === today) todayLearnedCount++;
-    }
-    const remainingSlots = Math.max(0, DAILY_NEW - todayLearnedCount);
+    const used = dailyCount.date === todayKey() ? dailyCount.used : 0;
+    const remainingSlots = Math.max(0, DAILY_NEW - used);
     const untouched = VOCAB.filter((v) => !progress[v.id]);
     return untouched.slice(0, remainingSlots);
-  }, [progress]);
+  }, [progress, dailyCount]);
 
   const [learnIndex, setLearnIndex] = useState(0);
   const currentLearnWord = newWords[learnIndex];
@@ -169,6 +179,10 @@ export default function App() {
 
   function markLearn(word, action) {
     const today = todayKey();
+    setDailyCount((prev) => {
+      const used = prev.date === today ? prev.used : 0;
+      return { date: today, used: used + 1 };
+    });
     setProgress((prev) => {
       const next = { ...prev };
       if (action === "master") {
@@ -269,6 +283,14 @@ export default function App() {
     } catch (err) {
       setImportMsg("格式错误，导入失败，请确认粘贴内容完整");
     }
+  }
+
+  function resetAll() {
+    if (!window.confirm("确定要清空所有学习进度吗？此操作不可恢复。")) return;
+    setProgress({});
+    setDailyCount({ date: todayKey(), used: 0 });
+    setLearnIndex(0);
+    setImportMsg("已重置全部进度");
   }
 
   // ================= 渲染 =================
@@ -580,6 +602,14 @@ export default function App() {
                   应用导入
                 </button>
                 {importMsg && <p className="text-xs text-emerald-600 mt-1">{importMsg}</p>}
+              </div>
+              <div className="mt-4 border-t border-slate-100 pt-4">
+                <button
+                  onClick={resetAll}
+                  className="w-full py-2 rounded-lg bg-red-50 text-red-600 text-sm font-medium"
+                >
+                  重置全部进度
+                </button>
               </div>
             </div>
 
