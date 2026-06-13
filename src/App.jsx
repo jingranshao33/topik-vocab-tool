@@ -14,29 +14,21 @@ function addDays(ts, days) {
   return ts + days * DAY_MS;
 }
 
-async function callClaude(prompt) {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+async function generateExample(word, meaning) {
+  const res = await fetch("/api/example", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-6",
-      max_tokens: 600,
-      messages: [{ role: "user", content: prompt }],
-    }),
+    body: JSON.stringify({ word, meaning }),
   });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || `请求失败（${res.status}）`);
+  }
   const data = await res.json();
-  const block = data.content?.find((c) => c.type === "text");
-  return block ? block.text : "";
-}
-
-async function generateExample(word, meaning) {
-  // 暂不接通真实API（Key不可放在前端代码中），先用占位文本，
-  // 部署到Vercel后通过后端环境变量接通真实生成
-  await new Promise((r) => setTimeout(r, 200));
   return {
-    sentence: `（部署后将显示包含 **${word}** 的AI生成例句）`,
-    translation: `（部署后将显示对应中文翻译，释义参考：${meaning}）`,
-    placeholder: true,
+    sentence: data.sentence || "（生成失败，请重试）",
+    translation: data.translation || "",
+    placeholder: false,
   };
 }
 
@@ -249,9 +241,17 @@ export default function App() {
   async function loadExample(word) {
     if (exampleCache[word.id] || loadingExample) return;
     setLoadingExample(true);
-    const result = await generateExample(word.word, word.meaning);
-    setExampleCache((prev) => ({ ...prev, [word.id]: result }));
-    setLoadingExample(false);
+    try {
+      const result = await generateExample(word.word, word.meaning);
+      setExampleCache((prev) => ({ ...prev, [word.id]: result }));
+    } catch (err) {
+      setExampleCache((prev) => ({
+        ...prev,
+        [word.id]: { sentence: `生成失败：${err.message}`, translation: "", placeholder: true },
+      }));
+    } finally {
+      setLoadingExample(false);
+    }
   }
 
   // ---------- 进度统计 ----------
