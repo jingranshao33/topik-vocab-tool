@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import VOCAB from "./vocab.js";
 import READING_DATA from "./reading.js";
 
@@ -313,7 +314,7 @@ function StudyPage({ progress, dailyCount, setProgress, setDailyCount, setCalend
     setTimeout(() => {
       const used2 = (dailyCount.date === today ? dailyCount.used : 0) + 1;
       if (used2 >= DAILY_NEW) {
-        setCalendar(prev => ({ ...prev, [today]: "new" }));
+        setCalendar(prev => ({ ...prev, [today]: prev[today] === "full" ? "full" : "new" }));
         onComplete && onComplete();
       }
     }, 100);
@@ -525,6 +526,11 @@ function QuizPage({ progress, setProgress, setCalendar }) {
   function nextItem() {
     const nextIdx = quizIndex+1;
     setQuizIndex(nextIdx);
+    if (nextIdx >= quizQueue.length) {
+      // 测验全部完成，标记今日日历为full（绿勾）
+      const today = todayKey();
+      setCalendar(prev => ({ ...prev, [today]: "full" }));
+    }
     setupItem(quizQueue, nextIdx);
   }
 
@@ -592,7 +598,12 @@ function QuizPage({ progress, setProgress, setCalendar }) {
             {quizWord(word.word)}
           </div>
         ) : (
-          <div className="text-xl font-medium py-6">{word.meaning}</div>
+          <div className="py-6">
+            <div className="flex justify-center mb-3">
+              <span className="px-3 py-1 rounded-full bg-[#EAE7FF] text-[#4B3BC8] text-xs font-bold" style={{ fontFamily:"'Noto Sans KR',sans-serif" }}>{word.pos}</span>
+            </div>
+            <div className="text-xl font-medium">{word.meaning}</div>
+          </div>
         )}
       </div>
 
