@@ -549,6 +549,12 @@ function QuizPage({ progress, setProgress, setCalendar }) {
           </button>
         </div>
       )}
+      {!answered && (
+        <button onClick={markGuess}
+          className="w-full py-2 rounded-[20px] border border-[rgba(30,28,24,0.16)] bg-[#FFFDF7] text-[#8A8174] text-sm active:opacity-70 transition-all">
+          我是猜的（跳过此题）
+        </button>
+      )}
     </div>
   );
 }
