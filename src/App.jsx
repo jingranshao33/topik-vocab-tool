@@ -336,7 +336,7 @@ function StudyPage({ progress, dailyCount, setProgress, setDailyCount, setCalend
           {/* 中文释义 */}
           <div className="text-xl font-medium mb-6 text-[#181713]">{currentWord.meaning}</div>
           {/* 例句 */}
-          <div className="rounded-[20px] bg-[#F6F0E4] p-4 min-h-[80px] mb-2 text-left">
+          <div className={`rounded-[20px] p-4 min-h-[80px] mb-2 text-left transition-all ${exampleCache[currentWord.id] ? "bg-[#F6F0E4]" : "bg-[#6D5DF6] border-2 border-[#1E1C18] shadow-[0_4px_0_#1E1C18] flex items-center justify-center"}`}>
             {exampleCache[currentWord.id] ? (
               exampleCache[currentWord.id].placeholder ? (
                 <p className="text-sm text-[#8A8174]">{exampleCache[currentWord.id].sentence}</p>
@@ -347,8 +347,11 @@ function StudyPage({ progress, dailyCount, setProgress, setDailyCount, setCalend
                 </>
               )
             ) : (
-              <button onClick={() => loadExample(currentWord)} className="w-full h-full flex items-center justify-center text-[#6D5DF6] text-sm font-medium">
-                {loadingExample ? "生成中…" : "生成例句"}
+              <button onClick={() => loadExample(currentWord)} className="w-full h-full flex items-center justify-center gap-2" disabled={loadingExample}>
+                <span className="text-lg">✨</span>
+                <span className="text-base font-bold text-white" style={{ fontFamily:"-apple-system,'PingFang SC',sans-serif" }}>
+                  {loadingExample ? "生成中…" : "生成例句"}
+                </span>
               </button>
             )}
           </div>
