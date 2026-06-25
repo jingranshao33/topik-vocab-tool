@@ -138,12 +138,26 @@ function CelebrationOverlay({ stats, onClose }) {
 }
 
 // ─── 首页 ─────────────────────────────────────────────────────────────────
-function HomePage({ progress, dailyCount, calendar, streak }) {
+function HomePage({ progress, dailyCount, calendar, streak, examDate }) {
   const now = new Date();
   const year = now.getFullYear(), month = now.getMonth();
   const daysInMonth = new Date(year, month+1, 0).getDate();
   const firstDay = new Date(year, month, 1).getDay();
   const weekDays = ["日","一","二","三","四","五","六"];
+
+  // 学习计划计算
+  const planInfo = useMemo(() => {
+    const untouched = VOCAB.filter(v => !progress[v.id]).length;
+    const daysToFinish = Math.ceil(untouched / 36);
+    if (!examDate) return { untouched, daysToFinish, daysLeft: null, slack: null, suggestDaily: null };
+    const exam = new Date(examDate);
+    exam.setHours(0,0,0,0);
+    const today = new Date(); today.setHours(0,0,0,0);
+    const daysLeft = Math.ceil((exam - today) / (1000 * 60 * 60 * 24));
+    const slack = daysLeft - daysToFinish;
+    const suggestDaily = daysLeft > 0 ? Math.ceil(untouched / daysLeft) : null;
+    return { untouched, daysToFinish, daysLeft, slack, suggestDaily };
+  }, [progress, examDate]);
 
   return (
     <div className="space-y-4">
@@ -160,6 +174,43 @@ function HomePage({ progress, dailyCount, calendar, streak }) {
           </div>
         </div>
       </div>
+
+      {/* 考试倒计时 + 学习计划 */}
+      {examDate && planInfo.daysLeft !== null && (
+        <div className={`rounded-[22px] p-4 border ${planInfo.slack < 0 ? "bg-[#FFE5DF] border-[#C94B3C]" : planInfo.slack <= 7 ? "bg-[#FFF4C8] border-[#F8C94A]" : "bg-[#EAF6DC] border-[#93C85F]"}`}>
+          <div className="flex justify-between items-start mb-2">
+            <div>
+              <p className="text-xs text-[#686157] mb-0.5">距离考试</p>
+              <p className="text-2xl font-bold" style={{ fontFamily:"Georgia,serif" }}>
+                {planInfo.daysLeft > 0 ? `${planInfo.daysLeft} 天` : "今天考试！"}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-[#686157] mb-0.5">剩余未学</p>
+              <p className="text-2xl font-bold" style={{ fontFamily:"Georgia,serif" }}>{planInfo.untouched} 词</p>
+            </div>
+          </div>
+          <div className="h-px bg-[rgba(30,28,24,0.1)] my-2"/>
+          {planInfo.slack >= 0 ? (
+            <div className="space-y-1 text-sm">
+              <p>按每天36个，还需 <strong>{planInfo.daysToFinish} 天</strong>背完</p>
+              <p className="text-[#686157]">
+                {planInfo.slack === 0
+                  ? "⚡ 刚好来得及，不能再拖了"
+                  : `😌 你还有 ${planInfo.slack} 天可以摸鱼`}
+              </p>
+              {planInfo.suggestDaily && planInfo.suggestDaily !== 36 && (
+                <p className="text-xs text-[#8A8174]">若想考前刚好背完，建议每天背 <strong>{planInfo.suggestDaily} 个</strong></p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-1 text-sm">
+              <p className="text-[#C94B3C] font-bold">⚠️ 按当前进度考试前背不完</p>
+              <p className="text-[#686157]">建议每天至少背 <strong>{planInfo.suggestDaily} 个</strong>才能覆盖全部词汇</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 日历 */}
       <div className="rounded-[32px] bg-[#FFFDF7] border-2 border-[#1E1C18] shadow-[0_6px_0_#1E1C18] p-5">
@@ -605,7 +656,7 @@ function QuizPage({ progress, setProgress, setCalendar }) {
 }
 
 // ─── 进度页 ───────────────────────────────────────────────────────────────
-function ProgressPage({ progress, setProgress, dailyCount, setDailyCount, setLearnIndex }) {
+function ProgressPage({ progress, setProgress, dailyCount, setDailyCount, examDate, setExamDate }) {
   const [importText, setImportText] = useState("");
   const [importMsg, setImportMsg] = useState("");
   const [showExport, setShowExport] = useState(false);
@@ -668,6 +719,24 @@ function ProgressPage({ progress, setProgress, dailyCount, setDailyCount, setLea
         ))}
       </div>
 
+      {/* 考试日期设置 */}
+      <div className="rounded-[22px] bg-[#FFFDF7] border border-[rgba(30,28,24,0.16)] p-5 shadow-[0_8px_20px_rgba(30,28,24,0.10)]">
+        <p className="text-sm font-bold mb-1">考试日期</p>
+        <p className="text-xs text-[#686157] mb-3">设置后主页会显示倒计时和学习进度建议。</p>
+        <input
+          type="date"
+          value={examDate}
+          onChange={e => setExamDate(e.target.value)}
+          className="w-full text-sm border border-[rgba(30,28,24,0.16)] rounded-[16px] p-3 bg-[#FFFDF7] mb-2"
+        />
+        {examDate && (
+          <button onClick={() => setExamDate("")}
+            className="text-xs text-[#8A8174] underline">
+            清除
+          </button>
+        )}
+      </div>
+
       {/* 今日到期 */}
       <div className="rounded-[22px] bg-[#EAE7FF] border border-[rgba(30,28,24,0.16)] p-4 flex justify-between items-center">
         <span className="text-sm font-bold">今日到期复习</span>
@@ -724,6 +793,15 @@ function ProgressPage({ progress, setProgress, dailyCount, setDailyCount, setLea
 // ─── 主 App ───────────────────────────────────────────────────────────────
 export default function App() {
   const [tab, setTab] = useState("home");
+
+  // 考试日期
+  const [examDate, setExamDateRaw] = useState(() => {
+    try { return localStorage.getItem("topik_exam_date") || ""; } catch(e){ return ""; }
+  });
+  const setExamDate = (val) => {
+    setExamDateRaw(val);
+    try { localStorage.setItem("topik_exam_date", val); } catch(e){}
+  };
 
   // 进度数据
   const [progress, setProgressRaw] = useState(() => {
@@ -818,10 +896,10 @@ export default function App() {
           </div>
 
           {/* 页面内容 */}
-          {tab==="home" && <HomePage progress={progress} dailyCount={dailyCount} calendar={calendar} streak={streak}/>}
+          {tab==="home" && <HomePage progress={progress} dailyCount={dailyCount} calendar={calendar} streak={streak} examDate={examDate}/>}
           {tab==="study" && <StudyPage progress={progress} dailyCount={dailyCount} setProgress={setProgress} setDailyCount={setDailyCount} setCalendar={setCalendar} onComplete={handleStudyComplete}/>}
           {tab==="quiz" && <QuizPage progress={progress} setProgress={setProgress} setCalendar={setCalendar}/>}
-          {tab==="progress" && <ProgressPage progress={progress} setProgress={setProgress} dailyCount={dailyCount} setDailyCount={setDailyCount}/>}
+          {tab==="progress" && <ProgressPage progress={progress} setProgress={setProgress} dailyCount={dailyCount} setDailyCount={setDailyCount} examDate={examDate} setExamDate={setExamDate}/>}
         </div>
       </div>
 
