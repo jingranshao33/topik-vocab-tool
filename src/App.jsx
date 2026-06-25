@@ -282,11 +282,28 @@ function StudyPage({ progress, dailyCount, setProgress, setDailyCount, setCalend
   }
 
   if (newWords.length === 0 && !currentWord) {
+    const totalUntouched = VOCAB.filter(v => !progress[v.id]).length;
     return (
       <div className="rounded-[32px] bg-[#FFFDF7] border-2 border-[#1E1C18] shadow-[0_7px_0_#1E1C18] p-10 text-center">
         <div className="text-4xl mb-4">✅</div>
         <h3 className="font-bold text-lg mb-2" style={{ fontFamily:"'Noto Sans KR',sans-serif" }}>오늘 학습 완료!</h3>
-        <p className="text-sm text-[#686157]">去「测验」页巩固今日单词吧</p>
+        <p className="text-sm text-[#686157] mb-6">去「测验」页巩固今日单词吧</p>
+        {totalUntouched > 0 && (
+          <button
+            onClick={() => {
+              const today = todayKey();
+              setDailyCount(prev => ({
+                date: today,
+                used: Math.max(0, (prev.date === today ? prev.used : 0) - DAILY_NEW),
+              }));
+            }}
+            className="w-full py-3 rounded-[24px] border-2 border-[#1E1C18] bg-[#EAE7FF] text-[#4B3BC8] font-bold shadow-[0_4px_0_#1E1C18] active:translate-y-1 active:shadow-[0_1px_0_#1E1C18] transition-all text-sm">
+            再学一天的单词（剩余 {totalUntouched} 词）
+          </button>
+        )}
+        {totalUntouched === 0 && (
+          <p className="text-xs text-[#93C85F] font-bold">🎉 词库已全部学完！</p>
+        )}
       </div>
     );
   }
