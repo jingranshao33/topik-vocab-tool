@@ -336,22 +336,22 @@ function StudyPage({ progress, dailyCount, setProgress, setDailyCount, setCalend
           {/* 中文释义 */}
           <div className="text-xl font-medium mb-6 text-[#181713]">{currentWord.meaning}</div>
           {/* 例句 */}
-          <div className={`rounded-[20px] p-4 min-h-[80px] mb-2 text-left transition-all ${exampleCache[currentWord.id] ? "bg-[#F6F0E4]" : "bg-[#6D5DF6] border-2 border-[#1E1C18] shadow-[0_4px_0_#1E1C18] flex items-center justify-center"}`}>
+          <div className="rounded-[20px] bg-[#F6F0E4] p-4 min-h-[80px] mb-2 text-left flex items-center justify-center">
             {exampleCache[currentWord.id] ? (
               exampleCache[currentWord.id].placeholder ? (
-                <p className="text-sm text-[#8A8174]">{exampleCache[currentWord.id].sentence}</p>
+                <p className="text-sm text-[#8A8174] w-full">{exampleCache[currentWord.id].sentence}</p>
               ) : (
-                <>
+                <div className="w-full">
                   <p className="text-sm mb-1 leading-relaxed">{renderBold(exampleCache[currentWord.id].sentence)}</p>
                   <p className="text-xs text-[#686157]">{exampleCache[currentWord.id].translation}</p>
-                </>
+                </div>
               )
             ) : (
-              <button onClick={() => loadExample(currentWord)} className="w-full h-full flex items-center justify-center gap-2" disabled={loadingExample}>
+              <button onClick={() => loadExample(currentWord)} disabled={loadingExample}
+                style={{ boxShadow: "0 4px 0 #1E1C18" }}
+                className="flex items-center gap-2 bg-[#6D5DF6] border-2 border-[#1E1C18] rounded-[999px] px-6 py-2.5 active:translate-y-1 transition-all">
                 <span className="text-lg">✨</span>
-                <span className="text-base font-bold text-white" style={{ fontFamily:"-apple-system,'PingFang SC',sans-serif" }}>
-                  {loadingExample ? "生成中…" : "生成例句"}
-                </span>
+                <span className="text-base font-bold text-white">{loadingExample ? "生成中…" : "生成例句"}</span>
               </button>
             )}
           </div>
