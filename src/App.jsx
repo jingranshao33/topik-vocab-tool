@@ -40,6 +40,11 @@ function playSound(type) {
       gain.gain.setValueAtTime(0.18, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
       osc.start(); osc.stop(ctx.currentTime + 0.25);
+    } else if (type === "neutral") {
+      osc.frequency.setValueAtTime(660, ctx.currentTime);
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+      osc.start(); osc.stop(ctx.currentTime + 0.12);
     } else {
       osc.frequency.setValueAtTime(220, ctx.currentTime);
       osc.frequency.exponentialRampToValueAtTime(140, ctx.currentTime + 0.3);
@@ -237,6 +242,9 @@ function StudyPage({ progress, dailyCount, setProgress, setDailyCount, setCalend
 
   function markLearn(word, action) {
     const today = todayKey();
+    // 声音反馈：已掌握用correct音，见过/没见过用neutral短音
+    if (action === "master") playSound("correct");
+    else playSound("neutral");
     setDailyCount(prev => {
       const used = prev.date === today ? prev.used : 0;
       return { date: today, used: used + 1 };
@@ -729,10 +737,10 @@ export default function App() {
   }
 
   const navItems = [
-    { key:"home", label:"홈", icon: Icons.home },
-    { key:"study", label:"학습", icon: Icons.study },
-    { key:"quiz", label:"퀴즈", icon: Icons.quiz },
-    { key:"progress", label:"진행", icon: Icons.progress },
+    { key:"home", label:"主页", icon: Icons.home },
+    { key:"study", label:"学习", icon: Icons.study },
+    { key:"quiz", label:"测验", icon: Icons.quiz },
+    { key:"progress", label:"进度", icon: Icons.progress },
   ];
 
   return (
