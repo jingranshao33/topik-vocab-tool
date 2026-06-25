@@ -242,7 +242,6 @@ function StudyPage({ progress, dailyCount, setProgress, setDailyCount, setCalend
 
   function markLearn(word, action) {
     const today = todayKey();
-    // 声音反馈：已掌握用correct音，见过/没见过用neutral短音
     if (action === "master") playSound("correct");
     else playSound("neutral");
     setDailyCount(prev => {
@@ -252,8 +251,8 @@ function StudyPage({ progress, dailyCount, setProgress, setDailyCount, setCalend
     setProgress(prev => {
       const next = { ...prev };
       next[word.id] = action === "master"
-        ? { status:"mastered", stage:-1, nextReview:null, guessRecent:false, learnedDate:today }
-        : { status:"learning", stage:-1, nextReview:now, guessRecent:false, learnedDate:today };
+        ? { status:"learning", stage:-1, nextReview:now, guessRecent:false, learnedDate:today, learnAction:"master" }
+        : { status:"learning", stage:-1, nextReview:now, guessRecent:false, learnedDate:today, learnAction:action };
       return next;
     });
     setLearnHistory(h => [...h, word.id]);
@@ -382,9 +381,14 @@ function QuizPage({ progress, setProgress, setCalendar }) {
   const now = Date.now();
 
   const dueWords = useMemo(() => {
+    const today = todayKey();
     return VOCAB.filter(v => {
       const p = progress[v.id];
-      return p && p.status === "learning" && p.nextReview && p.nextReview <= now;
+      if (!p || p.status !== "learning") return false;
+      // 已掌握标记的词：当天学的才进队列（当天拼写测验）
+      if (p.learnAction === "master") return p.learnedDate === today;
+      // 其他词：nextReview到期
+      return p.nextReview && p.nextReview <= now;
     });
   }, [progress]);
 
@@ -412,7 +416,9 @@ function QuizPage({ progress, setProgress, setCalendar }) {
   function setupItem(queue, idx) {
     if (idx >= queue.length) { setQuizQueue(null); return; }
     const word = queue[idx];
-    const mode = Math.random() > 0.5 ? "choice" : "input";
+    const p = progress[word.id];
+    // 出题模式：已掌握/见过→强制拼写；没见过→选择题
+    const mode = (p?.learnAction === "master" || p?.learnAction === "seen") ? "input" : "choice";
     setQuizMode(mode);
     setSelected(null); setAnswered(false); setInputVal(""); setAnimClass("");
     if (mode === "choice") {
@@ -446,7 +452,13 @@ function QuizPage({ progress, setProgress, setCalendar }) {
     setProgress(prev => {
       const p = prev[word.id] || { status:"learning", stage:-1, nextReview:now, guessRecent:false };
       let next;
-      if (p.guessRecent && correct) {
+      if (p.learnAction === "master") {
+        if (correct) {
+          next = { ...p, status:"mastered", stage:-1, nextReview:null, guessRecent:false };
+        } else {
+          next = { ...p, learnAction:"seen", stage:0, nextReview:addDays(now, STAGES[0]), guessRecent:false };
+        }
+      } else if (p.guessRecent && correct) {
         next = { ...p, guessRecent:false, nextReview:addDays(now, STAGES[Math.max(0, p.stage)]) };
       } else if (correct) {
         const newStage = Math.min(p.stage+1, STAGES.length-1);
@@ -518,7 +530,12 @@ function QuizPage({ progress, setProgress, setCalendar }) {
 
       {/* 题目卡 */}
       <div className="rounded-[32px] bg-[#FFFDF7] border-2 border-[#1E1C18] shadow-[0_7px_0_#1E1C18] p-6 text-center">
-        <p className="text-xs text-[#8A8174] mb-2 font-bold">{quizMode === "choice" ? "다음 뜻에 맞는 단어는?" : "다음을 한국어로 쓰시오"}</p>
+        <p className="text-xs text-[#8A8174] mb-2 font-bold">
+          {quizMode === "choice" ? "다음 뜻에 맞는 단어는?" : "다음을 한국어로 쓰시오"}
+          {progress[word.id]?.learnAction === "master" && (
+            <span className="ml-2 px-2 py-0.5 rounded-full bg-[#EAE7FF] text-[#4B3BC8] text-xs">✦ 掌握验证</span>
+          )}
+        </p>
         {quizMode === "choice" ? (
           <div className="text-4xl font-black py-6 leading-tight" style={{ fontFamily:"'Noto Sans KR',sans-serif" }}>
             {quizWord(word.word)}
