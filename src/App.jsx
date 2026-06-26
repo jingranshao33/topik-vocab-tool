@@ -410,9 +410,26 @@ function StudyPage({ progress, dailyCount, setProgress, setDailyCount, onComplet
           <div className="flex justify-center mb-4">
             <span className="px-4 py-1.5 rounded-full bg-[#6D5DF6] text-white text-sm font-bold">{posLabel(currentWord.pos)}</span>
           </div>
-          {/* 韩语大字 */}
-          <div className="text-5xl font-black mb-4 leading-tight tracking-tight" style={{ fontFamily:"'Noto Sans KR',sans-serif" }}>
-            {quizWord(currentWord.word)}
+          {/* 韩语大字 + 朗读按钮 */}
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <div className="text-5xl font-black leading-tight tracking-tight" style={{ fontFamily:"'Noto Sans KR',sans-serif" }}>
+              {quizWord(currentWord.word)}
+            </div>
+            <button onClick={() => {
+              const utter = new SpeechSynthesisUtterance(quizWord(currentWord.word));
+              utter.lang = "ko-KR";
+              utter.rate = 0.9;
+              window.speechSynthesis.cancel();
+              window.speechSynthesis.speak(utter);
+            }}
+              className="w-9 h-9 rounded-full bg-[#EAE7FF] border-2 border-[#1E1C18] flex items-center justify-center flex-shrink-0 active:scale-95 transition-all"
+              title="朗读">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-[#4B3BC8]">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+              </svg>
+            </button>
           </div>
           {/* 中文释义 */}
           <div className="text-xl font-medium mb-6 text-[#181713]">{currentWord.meaning}</div>
