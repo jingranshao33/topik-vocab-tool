@@ -513,9 +513,11 @@ function QuizPage({ progress, setProgress }) {
   function checkAnswer(answer) {
     if (answered) return;
     const word = quizQueue[quizIndex];
+    const correct = quizWord(word.word);
+    const altCorrect = word.alt ? quizWord(word.alt) : "";
     const isCorrect = quizMode === "choice"
       ? answer === word.meaning
-      : answer.trim() === quizWord(word.word);
+      : answer.trim() === correct || (altCorrect && answer.trim() === altCorrect);
     setAnswered(true);
     setSelected(answer);
     setSessionTotal(t => t+1);
@@ -651,15 +653,24 @@ function QuizPage({ progress, setProgress }) {
         </div>
       ) : (
         <div className="space-y-3">
-          <input ref={inputRef} value={inputVal} onChange={e => setInputVal(e.target.value)}
-            onKeyDown={e => e.key==="Enter" && !answered && checkAnswer(inputVal)}
-            disabled={answered}
-            placeholder="한국어로 입력하세요"
-            className={`w-full border-2 rounded-[24px] px-5 py-4 text-lg font-bold outline-none transition-all ${answered ? (inputVal.trim()===quizWord(word.word) ? "border-[#4F7F2D] bg-[#EAF6DC]" : "border-[#C94B3C] bg-[#FFE5DF]") : "border-[#1E1C18] bg-[#FFFDF7] focus:border-[#6D5DF6]"}`}
-            style={{ fontFamily:"'Noto Sans KR',sans-serif" }}/>
-          {answered && inputVal.trim()!==quizWord(word.word) && (
-            <p className="text-sm text-[#686157] px-2">正确答案：<strong style={{ fontFamily:"'Noto Sans KR',sans-serif" }}>{quizWord(word.word)}</strong></p>
-          )}
+          {(() => {
+            const correct = quizWord(word.word);
+            const altCorrect = word.alt ? quizWord(word.alt) : "";
+            const isInputCorrect = inputVal.trim() === correct || (altCorrect && inputVal.trim() === altCorrect);
+            return (
+              <>
+                <input ref={inputRef} value={inputVal} onChange={e => setInputVal(e.target.value)}
+                  onKeyDown={e => e.key==="Enter" && !answered && checkAnswer(inputVal)}
+                  disabled={answered}
+                  placeholder="한국어로 입력하세요"
+                  className={`w-full border-2 rounded-[24px] px-5 py-4 text-lg font-bold outline-none transition-all ${answered ? (isInputCorrect ? "border-[#4F7F2D] bg-[#EAF6DC]" : "border-[#C94B3C] bg-[#FFE5DF]") : "border-[#1E1C18] bg-[#FFFDF7] focus:border-[#6D5DF6]"}`}
+                  style={{ fontFamily:"'Noto Sans KR',sans-serif" }}/>
+                {answered && !isInputCorrect && (
+                  <p className="text-sm text-[#686157] px-2">正确答案：<strong style={{ fontFamily:"'Noto Sans KR',sans-serif" }}>{correct}{altCorrect ? ` / ${altCorrect}` : ""}</strong></p>
+                )}
+              </>
+            );
+          })()}
           {!answered && (
             <button onClick={() => checkAnswer(inputVal)}
               className="w-full py-3 rounded-[24px] bg-[#6D5DF6] text-white font-bold border-2 border-[#1E1C18] shadow-[0_5px_0_#1E1C18] active:translate-y-1 active:shadow-[0_1px_0_#1E1C18] transition-all">
