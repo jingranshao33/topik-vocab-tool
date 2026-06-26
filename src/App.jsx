@@ -11,6 +11,17 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 function todayKey() { return new Date().toDateString(); }
 function addDays(ts, d) { return ts + d * DAY_MS; }
 
+const POS_MAP = {
+  "명사": "名词", "동사": "动词", "형용사": "形容词", "부사": "副词",
+  "조사": "助词", "접속사": "接续词", "감탄사": "感叹词", "수사": "数词",
+  "관형사": "冠形词", "의존명사": "依存名词", "보조동사": "补助动词",
+  "보조형용사": "补助形容词",
+};
+function posLabel(pos) {
+  if (!pos) return "";
+  return pos.split("/").map(p => POS_MAP[p.trim()] || p.trim()).join(" / ");
+}
+
 // 从progress派生某天的日历状态，不依赖独立calendar存储
 // "full"=学+测验都做了  "new"=只学了词  "today"=今天还没开始  "none"=空
 function getDayState(dateStr, progress, dailyGoal) {
@@ -311,6 +322,9 @@ function StudyPage({ progress, dailyCount, setProgress, setDailyCount, onComplet
 
   function markLearn(word, action) {
     const today = todayKey();
+    // 当天0点时间戳，确保今天学的词今天就可以复习，不受学习时刻影响
+    const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+    const reviewFrom = todayStart.getTime();
     if (action === "master") playSound("correct");
     else playSound("neutral");
     setDailyCount(prev => {
@@ -320,8 +334,8 @@ function StudyPage({ progress, dailyCount, setProgress, setDailyCount, onComplet
     setProgress(prev => {
       const next = { ...prev };
       next[word.id] = action === "master"
-        ? { status:"learning", stage:-1, nextReview:now, guessRecent:false, learnedDate:today, learnAction:"master" }
-        : { status:"learning", stage:-1, nextReview:now, guessRecent:false, learnedDate:today, learnAction:action };
+        ? { status:"learning", stage:-1, nextReview:reviewFrom, guessRecent:false, learnedDate:today, learnAction:"master" }
+        : { status:"learning", stage:-1, nextReview:reviewFrom, guessRecent:false, learnedDate:today, learnAction:action };
       return next;
     });
     setLearnHistory(h => [...h, word.id]);
@@ -394,7 +408,7 @@ function StudyPage({ progress, dailyCount, setProgress, setDailyCount, onComplet
         <div className={`rounded-[36px] bg-[#FFFDF7] border-2 border-[#1E1C18] shadow-[0_7px_0_#1E1C18] p-8 text-center transition-all ${feedback ? "scale-[0.98]" : ""}`}>
           {/* 词性标签 */}
           <div className="flex justify-center mb-4">
-            <span className="px-4 py-1.5 rounded-full bg-[#6D5DF6] text-white text-sm font-bold" style={{ fontFamily:"'Noto Sans KR',sans-serif" }}>{currentWord.pos}</span>
+            <span className="px-4 py-1.5 rounded-full bg-[#6D5DF6] text-white text-sm font-bold">{posLabel(currentWord.pos)}</span>
           </div>
           {/* 韩语大字 */}
           <div className="text-5xl font-black mb-4 leading-tight tracking-tight" style={{ fontFamily:"'Noto Sans KR',sans-serif" }}>
@@ -611,7 +625,7 @@ function QuizPage({ progress, setProgress }) {
         ) : (
           <div className="py-6">
             <div className="flex justify-center mb-3">
-              <span className="px-3 py-1 rounded-full bg-[#EAE7FF] text-[#4B3BC8] text-xs font-bold" style={{ fontFamily:"'Noto Sans KR',sans-serif" }}>{word.pos}</span>
+              <span className="px-3 py-1 rounded-full bg-[#EAE7FF] text-[#4B3BC8] text-xs font-bold">{posLabel(word.pos)}</span>
             </div>
             <div className="text-xl font-medium">{word.meaning}</div>
           </div>
@@ -878,6 +892,26 @@ export default function App() {
 
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebStats, setCelebStats] = useState({});
+
+  // 启动时修正历史数据：nextReview在未来但learnedDate是今天或更早的词，拨回当天0点
+  useEffect(() => {
+    const now = Date.now();
+    const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+    const todayStartTs = todayStart.getTime();
+    let changed = false;
+    const fixed = { ...progress };
+    Object.entries(fixed).forEach(([id, p]) => {
+      if (p.status === "learning" && p.learnAction !== "master" && p.nextReview > now) {
+        // nextReview在未来，但应该已经可以复习了（learnedDate是今天或之前）
+        const learnedTs = new Date(p.learnedDate).getTime();
+        if (learnedTs <= todayStartTs) {
+          fixed[id] = { ...p, nextReview: todayStartTs };
+          changed = true;
+        }
+      }
+    });
+    if (changed) setProgress(fixed);
+  }, []);
 
   // streak从progress实时推算，不依赖独立calendar存储
   const streak = useMemo(() => {
