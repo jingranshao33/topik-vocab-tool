@@ -5,7 +5,6 @@ import READING_DATA from "./reading.js";
 
 
 const STAGES = [1, 3, 7, 14, 30];
-const DAILY_NEW = 36;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // ─── 工具函数 ─────────────────────────────────────────────────────────────
@@ -139,7 +138,7 @@ function CelebrationOverlay({ stats, onClose }) {
 }
 
 // ─── 首页 ─────────────────────────────────────────────────────────────────
-function HomePage({ progress, dailyCount, calendar, streak, examDate }) {
+function HomePage({ progress, dailyCount, calendar, streak, examDate, dailyGoal }) {
   const now = new Date();
   const year = now.getFullYear(), month = now.getMonth();
   const daysInMonth = new Date(year, month+1, 0).getDate();
@@ -149,7 +148,7 @@ function HomePage({ progress, dailyCount, calendar, streak, examDate }) {
   // 学习计划计算
   const planInfo = useMemo(() => {
     const untouched = VOCAB.filter(v => !progress[v.id]).length;
-    const daysToFinish = Math.ceil(untouched / 36);
+    const daysToFinish = Math.ceil(untouched / dailyGoal);
     if (!examDate) return { untouched, daysToFinish, daysLeft: null, slack: null, suggestDaily: null };
     const exam = new Date(examDate);
     exam.setHours(0,0,0,0);
@@ -194,7 +193,7 @@ function HomePage({ progress, dailyCount, calendar, streak, examDate }) {
           <div className="h-px bg-[rgba(30,28,24,0.1)] my-2"/>
           {planInfo.slack >= 0 ? (
             <div className="space-y-1 text-sm">
-              <p>按每天36个，还需 <strong>{planInfo.daysToFinish} 天</strong>背完</p>
+              <p>按每天{dailyGoal}个，还需 <strong>{planInfo.daysToFinish} 天</strong>背完</p>
               <p className="text-[#686157]">
                 {planInfo.slack === 0
                   ? "⚡ 刚好来得及，不能再拖了"
@@ -244,11 +243,11 @@ function HomePage({ progress, dailyCount, calendar, streak, examDate }) {
         <p className="text-sm font-bold mb-3">今日目标</p>
         {(() => {
           const used = dailyCount.date === todayKey() ? dailyCount.used : 0;
-          const pct = Math.min(100, Math.round((used / 36) * 100));
+          const pct = Math.min(100, Math.round((used / dailyGoal) * 100));
           const learned = Object.values(progress).filter(p => p.status==="learning"||p.status==="mastered").length;
           return (
             <>
-              <p className="text-xs text-[#686157] mb-1">학습 단어 {used} / 36</p>
+              <p className="text-xs text-[#686157] mb-1">학습 단어 {used} / {dailyGoal}</p>
               <div className="h-2.5 bg-[#E7DDCE] rounded-full overflow-hidden mb-3">
                 <div className="h-full bg-[#6D5DF6] rounded-full transition-all" style={{ width: `${pct}%` }}/>
               </div>
@@ -265,7 +264,7 @@ function HomePage({ progress, dailyCount, calendar, streak, examDate }) {
 }
 
 // ─── 学习页 ───────────────────────────────────────────────────────────────
-function StudyPage({ progress, dailyCount, setProgress, setDailyCount, setCalendar, onComplete }) {
+function StudyPage({ progress, dailyCount, setProgress, setDailyCount, setCalendar, onComplete, dailyGoal }) {
   const [learnHistory, setLearnHistory] = useState([]);
   const [exampleCache, setExampleCache] = useState({});
   const [loadingExample, setLoadingExample] = useState(false);
@@ -275,7 +274,7 @@ function StudyPage({ progress, dailyCount, setProgress, setDailyCount, setCalend
 
   const newWords = useMemo(() => {
     const used = dailyCount.date === todayKey() ? dailyCount.used : 0;
-    const remaining = Math.max(0, DAILY_NEW - used);
+    const remaining = Math.max(0, dailyGoal - used);
     return VOCAB.filter(v => !progress[v.id]).slice(0, remaining);
   }, [progress, dailyCount]);
 
@@ -313,7 +312,7 @@ function StudyPage({ progress, dailyCount, setProgress, setDailyCount, setCalend
     // 检查今日是否完成
     setTimeout(() => {
       const used2 = (dailyCount.date === today ? dailyCount.used : 0) + 1;
-      if (used2 >= DAILY_NEW) {
+      if (used2 >= dailyGoal) {
         setCalendar(prev => ({ ...prev, [today]: prev[today] === "full" ? "full" : "new" }));
         onComplete && onComplete();
       }
@@ -345,7 +344,7 @@ function StudyPage({ progress, dailyCount, setProgress, setDailyCount, setCalend
               const today = todayKey();
               setDailyCount(prev => ({
                 date: today,
-                used: Math.max(0, (prev.date === today ? prev.used : 0) - DAILY_NEW),
+                used: Math.max(0, (prev.date === today ? prev.used : 0) - dailyGoal),
               }));
             }}
             className="w-full py-3 rounded-[24px] border-2 border-[#1E1C18] bg-[#EAE7FF] text-[#4B3BC8] font-bold shadow-[0_4px_0_#1E1C18] active:translate-y-1 active:shadow-[0_1px_0_#1E1C18] transition-all text-sm">
@@ -667,14 +666,13 @@ function QuizPage({ progress, setProgress, setCalendar }) {
 }
 
 // ─── 进度页 ───────────────────────────────────────────────────────────────
-function ProgressPage({ progress, setProgress, dailyCount, setDailyCount, examDate, setExamDate }) {
+function ProgressPage({ progress, setProgress, dailyCount, setDailyCount, examDate, setExamDate, dailyGoal, setDailyGoal }) {
   const [importText, setImportText] = useState("");
   const [importMsg, setImportMsg] = useState("");
   const [showExport, setShowExport] = useState(false);
   const [userApiKey, setUserApiKey] = useState(() => { try { return localStorage.getItem("topik_user_api_key")||""; } catch(e){ return ""; } });
   const [userApiProvider, setUserApiProvider] = useState(() => { try { return localStorage.getItem("topik_user_api_provider")||"anthropic"; } catch(e){ return "anthropic"; } });
   const [apiKeyMsg, setApiKeyMsg] = useState("");
-  const [dailyGoal, setDailyGoal] = useState(() => { try { return parseInt(localStorage.getItem("topik_daily_goal")||"36"); } catch(e){ return 36; } });
 
   const stats = useMemo(() => {
     let learning=0, mastered=0;
@@ -748,6 +746,30 @@ function ProgressPage({ progress, setProgress, dailyCount, setDailyCount, examDa
         )}
       </div>
 
+      {/* 每日词量设置 */}
+      <div className="rounded-[22px] bg-[#FFFDF7] border border-[rgba(30,28,24,0.16)] p-5 shadow-[0_8px_20px_rgba(30,28,24,0.10)]">
+        <p className="text-sm font-bold mb-1">每日学习目标</p>
+        <p className="text-xs text-[#686157] mb-3">调整每天新词上限（1–50个），影响学习页进度和主页计划推算。</p>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setDailyGoal(Math.max(1, dailyGoal - 1))}
+            className="w-10 h-10 rounded-[12px] bg-[#F6F0E4] border-2 border-[#1E1C18] shadow-[0_3px_0_#1E1C18] font-bold text-lg flex items-center justify-center active:translate-y-0.5 active:shadow-[0_1px_0_#1E1C18] transition-all select-none">−</button>
+          <input
+            type="number" min="1" max="50"
+            value={dailyGoal}
+            onChange={e => {
+              const v = parseInt(e.target.value);
+              if (!isNaN(v)) setDailyGoal(Math.min(50, Math.max(1, v)));
+            }}
+            className="flex-1 text-center text-xl font-bold border-2 border-[#1E1C18] rounded-[16px] py-2 bg-[#FFFDF7] outline-none focus:border-[#6D5DF6]"
+            style={{ fontFamily:"Georgia,serif" }}/>
+          <button
+            onClick={() => setDailyGoal(Math.min(50, dailyGoal + 1))}
+            className="w-10 h-10 rounded-[12px] bg-[#F6F0E4] border-2 border-[#1E1C18] shadow-[0_3px_0_#1E1C18] font-bold text-lg flex items-center justify-center active:translate-y-0.5 active:shadow-[0_1px_0_#1E1C18] transition-all select-none">+</button>
+        </div>
+        <p className="text-xs text-[#8A8174] mt-2 text-center">个 / 天</p>
+      </div>
+
       {/* 今日到期 */}
       <div className="rounded-[22px] bg-[#EAE7FF] border border-[rgba(30,28,24,0.16)] p-4 flex justify-between items-center">
         <span className="text-sm font-bold">今日到期复习</span>
@@ -805,6 +827,15 @@ function ProgressPage({ progress, setProgress, dailyCount, setDailyCount, examDa
 export default function App() {
   const [tab, setTab] = useState("home");
 
+  // 每日词量
+  const [dailyGoal, setDailyGoalRaw] = useState(() => {
+    try { return parseInt(localStorage.getItem("topik_daily_goal") || "36"); } catch(e) { return 36; }
+  });
+  const setDailyGoal = (val) => {
+    setDailyGoalRaw(val);
+    try { localStorage.setItem("topik_daily_goal", String(val)); } catch(e) {}
+  };
+
   // 考试日期
   const [examDate, setExamDateRaw] = useState(() => {
     try { return localStorage.getItem("topik_exam_date") || ""; } catch(e){ return ""; }
@@ -844,6 +875,23 @@ export default function App() {
 
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebStats, setCelebStats] = useState({});
+
+  // 绿勾补救：启动时检查历史"new"记录，若该日学的词stage已推进，升级为"full"
+  useEffect(() => {
+    const needsUpgrade = Object.entries(calendar).filter(([, v]) => v === "new");
+    if (needsUpgrade.length === 0) return;
+    let changed = false;
+    const updated = { ...calendar };
+    needsUpgrade.forEach(([dateStr]) => {
+      // 找当天学的词
+      const wordsLearned = VOCAB.filter(v => progress[v.id]?.learnedDate === dateStr);
+      if (wordsLearned.length === 0) return;
+      // 若有任何词的stage已推进（>-1）说明做过测验
+      const anyReviewed = wordsLearned.some(v => (progress[v.id]?.stage ?? -1) > -1 || progress[v.id]?.status === "mastered");
+      if (anyReviewed) { updated[dateStr] = "full"; changed = true; }
+    });
+    if (changed) setCalendar(updated);
+  }, []); // 仅启动时跑一次
 
   const streak = useMemo(() => {
     let s=0, d=new Date();
@@ -895,10 +943,10 @@ export default function App() {
         {/* 顶部标题 */}
         <div className="max-w-2xl mx-auto px-4 pt-8 pb-4">
           <div className="flex items-center gap-2 mb-6">
-            <span className="text-lg">🌱</span>
+            <span className="text-lg">📖</span>
             <div>
-              <h1 className="font-black text-sm tracking-wide">Cream Garden</h1>
-              <p className="text-xs text-[#8A8174]" style={{ fontFamily:"'Noto Sans KR',sans-serif" }}>TOPIK</p>
+              <h1 className="font-black text-sm tracking-wide">懒背 TOPIK</h1>
+              <p className="text-xs text-[#8A8174]" style={{ fontFamily:"'Noto Sans KR',sans-serif" }}>게으른 학습법</p>
             </div>
             <div className="ml-auto flex items-center gap-1 text-sm">
               <span>🔥</span>
@@ -907,10 +955,10 @@ export default function App() {
           </div>
 
           {/* 页面内容 */}
-          {tab==="home" && <HomePage progress={progress} dailyCount={dailyCount} calendar={calendar} streak={streak} examDate={examDate}/>}
-          {tab==="study" && <StudyPage progress={progress} dailyCount={dailyCount} setProgress={setProgress} setDailyCount={setDailyCount} setCalendar={setCalendar} onComplete={handleStudyComplete}/>}
+          {tab==="home" && <HomePage progress={progress} dailyCount={dailyCount} calendar={calendar} streak={streak} examDate={examDate} dailyGoal={dailyGoal}/>}
+          {tab==="study" && <StudyPage progress={progress} dailyCount={dailyCount} setProgress={setProgress} setDailyCount={setDailyCount} setCalendar={setCalendar} onComplete={handleStudyComplete} dailyGoal={dailyGoal}/>}
           {tab==="quiz" && <QuizPage progress={progress} setProgress={setProgress} setCalendar={setCalendar}/>}
-          {tab==="progress" && <ProgressPage progress={progress} setProgress={setProgress} dailyCount={dailyCount} setDailyCount={setDailyCount} examDate={examDate} setExamDate={setExamDate}/>}
+          {tab==="progress" && <ProgressPage progress={progress} setProgress={setProgress} dailyCount={dailyCount} setDailyCount={setDailyCount} examDate={examDate} setExamDate={setExamDate} dailyGoal={dailyGoal} setDailyGoal={setDailyGoal}/>}
         </div>
       </div>
 
