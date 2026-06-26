@@ -904,25 +904,7 @@ export default function App() {
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebStats, setCelebStats] = useState({});
 
-  // 启动时修正历史数据：nextReview在未来但learnedDate是今天或更早的词，拨回当天0点
-  useEffect(() => {
-    const now = Date.now();
-    const todayStart = new Date(); todayStart.setHours(0,0,0,0);
-    const todayStartTs = todayStart.getTime();
-    let changed = false;
-    const fixed = { ...progress };
-    Object.entries(fixed).forEach(([id, p]) => {
-      if (p.status === "learning" && p.learnAction !== "master" && p.nextReview > now) {
-        // nextReview在未来，但应该已经可以复习了（learnedDate是今天或之前）
-        const learnedTs = new Date(p.learnedDate).getTime();
-        if (learnedTs <= todayStartTs) {
-          fixed[id] = { ...p, nextReview: todayStartTs };
-          changed = true;
-        }
-      }
-    });
-    if (changed) setProgress(fixed);
-  }, []);
+
 
   // streak从progress实时推算，不依赖独立calendar存储
   const streak = useMemo(() => {
