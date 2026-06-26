@@ -10,6 +10,24 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // ─── 工具函数 ─────────────────────────────────────────────────────────────
 function todayKey() { return new Date().toDateString(); }
 function addDays(ts, d) { return ts + d * DAY_MS; }
+
+// 从progress派生某天的日历状态，不依赖独立calendar存储
+// "full"=学+测验都做了  "new"=只学了词  "today"=今天还没开始  "none"=空
+function getDayState(dateStr, progress, dailyGoal) {
+  const isToday = dateStr === todayKey();
+  const wordsLearned = VOCAB.filter(v => progress[v.id]?.learnedDate === dateStr);
+  if (wordsLearned.length === 0) return isToday ? "today" : "none";
+  // 达到当日目标才算"学完"
+  const reachedGoal = wordsLearned.length >= dailyGoal;
+  // 有任何词stage已推进（做过测验被处理）或已mastered
+  const anyReviewed = wordsLearned.some(v => {
+    const p = progress[v.id];
+    return p && ((p.stage ?? -1) > -1 || p.status === "mastered");
+  });
+  if (anyReviewed) return "full";
+  if (reachedGoal || wordsLearned.length > 0) return "new";
+  return isToday ? "today" : "none";
+}
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -138,7 +156,7 @@ function CelebrationOverlay({ stats, onClose }) {
 }
 
 // ─── 首页 ─────────────────────────────────────────────────────────────────
-function HomePage({ progress, dailyCount, calendar, streak, examDate, dailyGoal }) {
+function HomePage({ progress, dailyCount, streak, examDate, dailyGoal }) {
   const now = new Date();
   const year = now.getFullYear(), month = now.getMonth();
   const daysInMonth = new Date(year, month+1, 0).getDate();
@@ -226,7 +244,7 @@ function HomePage({ progress, dailyCount, calendar, streak, examDate, dailyGoal 
             const d = i+1;
             const key = new Date(year, month, d).toDateString();
             const isToday = key === todayKey();
-            const state = calendar[key] || (isToday ? "today" : "none");
+            const state = getDayState(key, progress, dailyGoal);
             return (
               <div key={d} className="flex flex-col items-center py-0.5">
                 <DayBadge state={state}/>
@@ -264,7 +282,7 @@ function HomePage({ progress, dailyCount, calendar, streak, examDate, dailyGoal 
 }
 
 // ─── 学习页 ───────────────────────────────────────────────────────────────
-function StudyPage({ progress, dailyCount, setProgress, setDailyCount, setCalendar, onComplete, dailyGoal }) {
+function StudyPage({ progress, dailyCount, setProgress, setDailyCount, onComplete, dailyGoal }) {
   const [learnHistory, setLearnHistory] = useState([]);
   const [exampleCache, setExampleCache] = useState({});
   const [loadingExample, setLoadingExample] = useState(false);
@@ -313,7 +331,6 @@ function StudyPage({ progress, dailyCount, setProgress, setDailyCount, setCalend
     setTimeout(() => {
       const used2 = (dailyCount.date === today ? dailyCount.used : 0) + 1;
       if (used2 >= dailyGoal) {
-        setCalendar(prev => ({ ...prev, [today]: prev[today] === "full" ? "full" : "new" }));
         onComplete && onComplete();
       }
     }, 100);
@@ -428,7 +445,7 @@ function StudyPage({ progress, dailyCount, setProgress, setDailyCount, setCalend
 }
 
 // ─── 测验页 ───────────────────────────────────────────────────────────────
-function QuizPage({ progress, setProgress, setCalendar }) {
+function QuizPage({ progress, setProgress }) {
   const now = Date.now();
 
   const dueWords = useMemo(() => {
@@ -525,11 +542,6 @@ function QuizPage({ progress, setProgress, setCalendar }) {
   function nextItem() {
     const nextIdx = quizIndex+1;
     setQuizIndex(nextIdx);
-    if (nextIdx >= quizQueue.length) {
-      // 测验全部完成，标记今日日历为full（绿勾）
-      const today = todayKey();
-      setCalendar(prev => ({ ...prev, [today]: "full" }));
-    }
     setupItem(quizQueue, nextIdx);
   }
 
@@ -864,44 +876,24 @@ export default function App() {
     try { localStorage.setItem("topik_daily_count", JSON.stringify(next)); } catch(e){}
   };
 
-  const [calendar, setCalendarRaw] = useState(() => {
-    try { const s=localStorage.getItem("topik_calendar"); return s?JSON.parse(s):{}; } catch(e){ return {}; }
-  });
-  const setCalendar = (val) => {
-    const next = typeof val==="function" ? val(calendar) : val;
-    setCalendarRaw(next);
-    try { localStorage.setItem("topik_calendar", JSON.stringify(next)); } catch(e){}
-  };
-
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebStats, setCelebStats] = useState({});
 
-  // 绿勾补救：启动时检查历史"new"记录，若该日学的词stage已推进，升级为"full"
-  useEffect(() => {
-    const needsUpgrade = Object.entries(calendar).filter(([, v]) => v === "new");
-    if (needsUpgrade.length === 0) return;
-    let changed = false;
-    const updated = { ...calendar };
-    needsUpgrade.forEach(([dateStr]) => {
-      // 找当天学的词
-      const wordsLearned = VOCAB.filter(v => progress[v.id]?.learnedDate === dateStr);
-      if (wordsLearned.length === 0) return;
-      // 若有任何词的stage已推进（>-1）说明做过测验
-      const anyReviewed = wordsLearned.some(v => (progress[v.id]?.stage ?? -1) > -1 || progress[v.id]?.status === "mastered");
-      if (anyReviewed) { updated[dateStr] = "full"; changed = true; }
-    });
-    if (changed) setCalendar(updated);
-  }, []); // 仅启动时跑一次
-
+  // streak从progress实时推算，不依赖独立calendar存储
   const streak = useMemo(() => {
-    let s=0, d=new Date();
+    let s = 0, d = new Date();
+    // 今天还没学过词时，从昨天开始数（给当天宽限）
+    const todayState = getDayState(d.toDateString(), progress, dailyGoal);
+    if (todayState === "none" || todayState === "today") {
+      d.setDate(d.getDate() - 1);
+    }
     while (true) {
-      const k = d.toDateString();
-      if (calendar[k]==="full"||calendar[k]==="new") { s++; d.setDate(d.getDate()-1); }
+      const state = getDayState(d.toDateString(), progress, dailyGoal);
+      if (state === "full" || state === "new") { s++; d.setDate(d.getDate() - 1); }
       else break;
     }
     return s;
-  }, [calendar]);
+  }, [progress, dailyGoal]);
 
   function handleStudyComplete() {
     const mastered = Object.values(progress).filter(p=>p.status==="mastered").length;
@@ -955,9 +947,9 @@ export default function App() {
           </div>
 
           {/* 页面内容 */}
-          {tab==="home" && <HomePage progress={progress} dailyCount={dailyCount} calendar={calendar} streak={streak} examDate={examDate} dailyGoal={dailyGoal}/>}
-          {tab==="study" && <StudyPage progress={progress} dailyCount={dailyCount} setProgress={setProgress} setDailyCount={setDailyCount} setCalendar={setCalendar} onComplete={handleStudyComplete} dailyGoal={dailyGoal}/>}
-          {tab==="quiz" && <QuizPage progress={progress} setProgress={setProgress} setCalendar={setCalendar}/>}
+          {tab==="home" && <HomePage progress={progress} dailyCount={dailyCount} streak={streak} examDate={examDate} dailyGoal={dailyGoal}/>}
+          {tab==="study" && <StudyPage progress={progress} dailyCount={dailyCount} setProgress={setProgress} setDailyCount={setDailyCount} onComplete={handleStudyComplete} dailyGoal={dailyGoal}/>}
+          {tab==="quiz" && <QuizPage progress={progress} setProgress={setProgress}/>}
           {tab==="progress" && <ProgressPage progress={progress} setProgress={setProgress} dailyCount={dailyCount} setDailyCount={setDailyCount} examDate={examDate} setExamDate={setExamDate} dailyGoal={dailyGoal} setDailyGoal={setDailyGoal}/>}
         </div>
       </div>
